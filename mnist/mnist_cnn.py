@@ -9,7 +9,7 @@
 # tensorboard --logdir=summary
 #
 # https://www.tensorflow.org/get_started/mnist/pros
-# JSCH 2017-04-23
+# JSCH 2017-05-01
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -49,8 +49,6 @@ def main():
 
     sess = tf.InteractiveSession()
 
-
-
     # Set parameters (hyperparameters)
     learning_rate = 0.01
     training_iteration = 50
@@ -77,23 +75,10 @@ def main():
 
     # Build first convoluFLAGStional layer (width/height, height/width, input 
     # features/layers, output features/layers)
-    #W_conv1 = weight_variable([5, 5, 1, 8]) # original 32 output features
-    #b_conv1 = bias_variable([8])
-
     h_pool1 = cnn_layer(x_image, [5, 5], 8, "layer1_input")
-    h_pool2 = cnn_layer(h_pool1, [5, 5], 16, "layer2_hidden")
-
-    #h_conv1 = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1)
-    # finaly we reduce the layer width and height to 14x14 (input was 28x28)
-    #h_pool1 = max_pool_2x2(h_conv1)
 
     # Second convolutional layer
-    #W_conv2 = weight_variable([5, 5, 8, 16]) # original 64 output features
-    #b_conv2 = bias_variable([16])
-
-    #h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2) + b_conv2)
-    # reduce the layer width and height to 7x7
-    #h_pool2 = max_pool_2x2(h_conv2)
+    h_pool2 = cnn_layer(h_pool1, [5, 5], 16, "layer2_hidden")
 
     # Densely (not fully connected, cause of drop out) connected layer
     # NOTE: TensorFlow's tf.nn.dropout op automatically handles scaling neuron 
@@ -130,9 +115,11 @@ def main():
         cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y_conv))
         tf.summary.scalar('cross_entropy', cross_entropy)
 
-    with tf.name_scope('optimizer'):
-        train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
-        
+    with tf.name_scope('sgd_adam'):
+        optimizer = tf.train.AdamOptimizer(1e-4)
+        train_step = optimizer.minimize(cross_entropy)
+        #gradient = tf.gradients(cross_entropy,)
+        #tf.summary.scalar('pred_error', 1-accuracy)
         
     with tf.name_scope('prediction'):
         correct_prediction = tf.equal(tf.argmax(y_conv,1), tf.argmax(y_,1))
@@ -153,11 +140,11 @@ def main():
     tf.global_variables_initializer().run()
 
 
+
     sess.run(tf.global_variables_initializer())
     for i in range(iterrations):
         batch = mnist.train.next_batch(50)
-        
-        #train_step.run(feed_dict={x: batch[0], y_: batch[1], keep_prob: 0.5})
+
         summary,_ = sess.run([merged, train_step],feed_dict={x: batch[0], y_: batch[1], keep_prob: 0.5})
         train_writer.add_summary(summary, i)
 
@@ -166,15 +153,14 @@ def main():
             #cost[arr_no] = cross_entropy.eval(feed_dict={x: batch[0], y_: batch[1], keep_prob: 0.5})
             #train_accuracy[arr_no] = accuracy.eval(feed_dict={x:batch[0], y_: batch[1], keep_prob: 1.0})
             cost[arr_no], train_accuracy[arr_no] = sess.run([cross_entropy, accuracy],feed_dict={x: batch[0], y_: batch[1], keep_prob: 0.5})
-
             summary, valid_accuracy[arr_no] = sess.run([merged, accuracy], feed_dict={x: mnist.validation.images, y_: mnist.validation.labels, keep_prob: 1.0})
             
             valid_writer.add_summary(summary, i)
             
-            train_writer.flush()  #Don't forget this command! It makes sure Python writes the summaries to the log-file
+            train_writer.flush() # Don't forget this command! It makes sure Python writes the summaries to the log-file
             valid_writer.flush()
             
-            print("step %d, cost %4f, training accuracy %4f, test accuracy %4f"%(i, cost[arr_no], train_accuracy[arr_no], valid_accuracy[arr_no]))
+            print("step {:05d}, cost {:4f}, training accuracy {:4f}, test accuracy {:4f}".format(i, cost[arr_no], train_accuracy[arr_no], valid_accuracy[arr_no]))
 
     print("test accuracy %g"%accuracy.eval(feed_dict={x: mnist.test.images, y_: mnist.test.labels, keep_prob: 1.0}))
 
